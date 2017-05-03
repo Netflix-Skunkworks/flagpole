@@ -67,7 +67,7 @@ class FlagRegistry:
                 flag_list = [flag] 
             if type(key) not in [list, tuple]: 
                 key_list = [key]
-            for idx in xrange(len(flag_list)):
+            for idx in range(len(flag_list)):
                 self.r[fn].append(
                     dict(flag=flag_list[idx],
                          depends_on=depends_on,
@@ -255,6 +255,7 @@ class Flags(object):
             self._idx += 1
         self.flags['ALL'] = 2**self._idx-1
         self.flags['None'] = 0
+        self.flags['NONE'] = 0
 
     def __getattr__(self, k):
         return self.flags[k]

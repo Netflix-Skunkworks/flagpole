@@ -15,6 +15,37 @@ Flag arg parser to build out a dictionary with optional keys.
 
 Flagpole is used in [cloudaux](https://github.com/Netflix-Skunkworks/cloudaux) to allow users of cloudaux to specify how the library builds out the items.
 
+Flagpole has two classes: `Flags` and `FlagRegistry`.
+
+### Flags
+```python
+>>> from flagpole import Flags
+
+>>> FLAGS = Flags('BASE', 'LISTENERS', 'RULES')
+>>> print(FLAGS)
+OrderedDict([('BASE', 1), ('LISTENERS', 2), ('RULES', 4), ('ALL', 7), ('None', 0), ('NONE', 0)])
+
+>>> print("{0:b}".format(FLAGS.None).zfill(3))
+000
+>>> print("{0:b}".format(FLAGS.ALL).zfill(3))
+111
+>>> print("{0:b}".format(FLAGS.BASE).zfill(3))
+001
+>>> print("{0:b}".format(FLAGS.LISTENERS).zfill(3))
+010
+>>> print("{0:b}".format(FLAGS.RULES).zfill(3))
+100
+
+# combine multiple flags:
+>>> print("{0:b}".format(FLAGS.RULES | FLAGS.LISTENERS).zfill(3))
+110
+```
+
+`FLAGS.ALL` and `FLAGS.None` are automatically added.  All others must be added in the constructor.
+
+Note: both `NONE` and `None` are provided as we found casing to be a common user error.
+
+### FlagRegistry
 ```python
 from flagpole import FlagRegistry, Flags
 
@@ -49,6 +80,8 @@ def get_elbv2(alb_arn, flags=FLAGS.ALL, **conn):
     registry.build_out(result, flags, result, **conn)
     return result
 ```
+
+Note: You can build any arbitrary combination of flags such as: `flags=FLAGS.RULES | FLAGS.LISTENERS`
 
 Note that `build_out` does not have a return value. It mutates the `result` dictionary passed in.
 
