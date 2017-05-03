@@ -19,26 +19,26 @@ Flagpole has two classes: `Flags` and `FlagRegistry`.
 
 ### Flags
 ```python
->>> from flagpole import Flags
+from flagpole import Flags
 
->>> FLAGS = Flags('BASE', 'LISTENERS', 'RULES')
->>> print(FLAGS)
-OrderedDict([('BASE', 1), ('LISTENERS', 2), ('RULES', 4), ('ALL', 7), ('None', 0), ('NONE', 0)])
+FLAGS = Flags('BASE', 'LISTENERS', 'RULES')
+print(FLAGS)
+# OrderedDict([('BASE', 1), ('LISTENERS', 2), ('RULES', 4), ('ALL', 7), ('None', 0), ('NONE', 0)])
 
->>> print("{0:b}".format(FLAGS.None).zfill(3))
-000
->>> print("{0:b}".format(FLAGS.ALL).zfill(3))
-111
->>> print("{0:b}".format(FLAGS.BASE).zfill(3))
-001
->>> print("{0:b}".format(FLAGS.LISTENERS).zfill(3))
-010
->>> print("{0:b}".format(FLAGS.RULES).zfill(3))
-100
+print("{0:b}".format(FLAGS.None).zfill(3))
+# 000
+print("{0:b}".format(FLAGS.ALL).zfill(3))
+# 111
+print("{0:b}".format(FLAGS.BASE).zfill(3))
+# 001
+print("{0:b}".format(FLAGS.LISTENERS).zfill(3))
+# 010
+print("{0:b}".format(FLAGS.RULES).zfill(3))
+# 100
 
-# combine multiple flags:
->>> print("{0:b}".format(FLAGS.RULES | FLAGS.LISTENERS).zfill(3))
-110
+# combine multiple flags (100 & 010 = 110):
+print("{0:b}".format(FLAGS.RULES | FLAGS.LISTENERS).zfill(3))
+# 110
 ```
 
 `FLAGS.ALL` and `FLAGS.None` are automatically added.  All others must be added in the constructor.
@@ -74,7 +74,7 @@ def get_base(alb, **conn):
 
 And then you can call `registry.build_out()` like so:
 
-```
+```python
 def get_elbv2(alb_arn, flags=FLAGS.ALL, **conn):
     result = dict(Arn=alb_arn)
     registry.build_out(result, flags, result, **conn)
@@ -87,7 +87,7 @@ Note that `build_out` does not have a return value. It mutates the `result` dict
 
 The result for this example, when called with `FLAGS.ALL` would be a dictionary in the following structure:
 
-```
+```json
 {
     'Arn': ...,
     'region': ...,
