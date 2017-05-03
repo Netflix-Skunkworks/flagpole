@@ -19,4 +19,4 @@ class TestFlags(unittest.TestCase):
         self.assertEqual(FLAGS_3.FEATURE_ONE, 2)
         self.assertEqual(FLAGS_3.FEATURE_TWO, 4)
         self.assertEqual(FLAGS_3.ALL, 7)
-        self.assertEqual(str(FLAGS_3), "OrderedDict([('BASE', 1), ('FEATURE_ONE', 2), ('FEATURE_TWO', 4), ('ALL', 7), ('None', 0)])")
+        self.assertEqual(str(FLAGS_3), "OrderedDict([('BASE', 1), ('FEATURE_ONE', 2), ('FEATURE_TWO', 4), ('ALL', 7), ('None', 0), ('NONE', 0)])")
