@@ -87,7 +87,7 @@ Note that `build_out` does not have a return value. It mutates the `result` dict
 
 The result for this example, when called with `FLAGS.ALL` would be a dictionary in the following structure:
 
-```json
+```
 {
     'Arn': ...,
     'region': ...,
