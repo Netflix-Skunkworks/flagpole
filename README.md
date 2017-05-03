@@ -46,8 +46,46 @@ print("{0:b}".format(FLAGS.RULES | FLAGS.LISTENERS).zfill(3))
 Note: both `NONE` and `None` are provided as we found casing to be a common user error.
 
 ### FlagRegistry
+
+The registry has two parts:
+- The decorator `@registry.register(...)`
+- The build_out method `registry.build_out(...)`
+
+The FlagRegistry is specialized for the cause of building out a datastructure (a python dictionary) with an arbitrary number of optional fields.
+
+#### FlagRegistry decorator:
+
+The decorator is used to wrap methods to indicate which __flag__ will cause the method to be invoked, whether any other flags are a __dependency__, and under what __key__ the return value should be placed.
+
+Supports wrapping methods with multiple return values.  Each return value can have a separate flag and a separate key.
+
+The decorator has the following keyword arguments:
+- __flag__: The wrapped method will only be invoked when `build_out` is invoked with a flag which matches the flag provided here.
+    - Can be a flag (like `FLAG.RULES`), or for multiple return values, can be a list or tuple.  See the [source](flagpole/__init__.py) for an example.
+- __key__: The return value of the wrapped function will be appended to the result dictionary using the key provided. *This keyword argument is optional*.  If not provided, the return value is merged (`dict.update(other_dict)`) with the result dictionary.
+    - Can be a string, or for multiple return values, can be a list or tuple.  See the [source](flagpole/__init__.py) for an example.
+- __depends_on__: If the wrapped method must not be called until another wrapped method is executed, you must put the __flag__ of the other method here.  *This keyword argument is optional*.  If provided, the results of the function for which this one depends on should be passed in as an argument to this function.
+
+#### FlagRegistry build_out:
+
+The `registry.build_out(...)` method takes the following arguments:
+
+- __result__: A dictionary that will be mutated to contain the return values for all decorated methods.
+- __flags__: The flag indicating which decorated methods to execute.  Multiple may be combined using a binary OR operation: `flags=FLAGS.RULES | FLAGS.LISTENERS`
+- __*args__: Arguments passed to all executed decorated methods.
+- __**kwargs__: Keyword arguments passed to all executed decorated methods.
+
+The `build_out` method executes all registry decorated methods having a flag which matches that passed into `build_out`.
+It will follow any dependency chains to execute methods in the correct order.
+
+The `Flags` combined with the ability to recursively follow dependency chains, are in large part the strength of this package.  This package will also detect any circular depdenencies in the decorated methods and will raise an appropriate exception.
+
+#### Full example:
+
 ```python
 from flagpole import FlagRegistry, Flags
+from cloudaux.aws.elbv2 import describe_listeners
+from cloudaux.aws.elbv2 import describe_rules
 
 registry = FlagRegistry()
 FLAGS = Flags('BASE', 'LISTENERS', 'RULES')
@@ -96,3 +134,5 @@ The result for this example, when called with `FLAGS.ALL` would be a dictionary 
     '_version': ...,
 }
 ```
+
+The [FlagRegistry class](flagpole/__init__.py) fully documents its use.
