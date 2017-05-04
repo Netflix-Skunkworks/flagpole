@@ -140,7 +140,7 @@ class TestRegistry(unittest.TestCase):
             pass
 
         with self.assertRaises(Exception) as context:
-            registry._do_method_pass([method_one, method_two], 0, dict(), flags=FLAGS.ONE | FLAGS.TWO)
+            registry._do_method_pass([method_one, method_two], 0, dict(), False, flags=FLAGS.ONE | FLAGS.TWO)
             self.assertTrue('Circular Dependency Error' in str(context.exception))
         
         with self.assertRaises(Exception) as context:
@@ -157,60 +157,70 @@ class TestRegistry(unittest.TestCase):
             return 1
 
         @registry.register(flag=FLAGS.TWO, depends_on=FLAGS.ONE, key='two')
-        def method_two():
+        def method_two(data):
+            # Note: Any method that sets depends_on must take an argument holding the datastructure being built out
             return 2
 
         result = dict()
         next_method_queue, executed_flag = registry._do_method_pass(
-            [method_two, method_one], 0, result, flags=FLAGS.ONE | FLAGS.TWO)
+            [method_two, method_one], 0, result, False, flags=FLAGS.ONE | FLAGS.TWO)
 
         self.assertEqual(len(next_method_queue), 1) 
         self.assertEqual(executed_flag, FLAGS.ONE)
         self.assertEqual(set(result.keys()), set(['one']))
-        
+
         next_method_queue, executed_flag = registry._do_method_pass(
-            next_method_queue, executed_flag, result, flags=FLAGS.ONE | FLAGS.TWO)
-            
+            next_method_queue, executed_flag, result, False, flags=FLAGS.ONE | FLAGS.TWO)
+
         self.assertEqual(len(next_method_queue), 0) 
         self.assertEqual(executed_flag, FLAGS.ONE | FLAGS.TWO)
         self.assertEqual(set(result.keys()), set(['one', 'two']))
-    
+
     def test_build_out(self):
         FLAGS = Flags('PEOPLE', 'HOBBIES')
         registry = FlagRegistry()
-       
+
         @registry.register(flag=FLAGS.PEOPLE, key='people') 
         def method_people(*args):
             return dict(simon='123', george='234')
-        
+
         @registry.register(flag=FLAGS.HOBBIES, depends_on=FLAGS.PEOPLE, key='hobbies') 
         def method_hobbies(result):
             hobbies = {
                 '123': ['mountain biking', 'skiing'],
                 '234': ['snail collecting', 'roaring like a dinosaur']}
-            
+
             return_value = dict()
             for person, uid in result['people'].items():
                 return_value[person] = hobbies.get(uid)
-                
+
             return return_value
-          
-        result = dict() 
-        registry.build_out(result, FLAGS.PEOPLE, result)
-        
+
+        # Simple example
+        #   - No dependencies
+        #   - Single Flag
+        #   - No starts_with dict
+        #   - Default pass_dictionary value (False)
+
+        result = registry.build_out(FLAGS.PEOPLE)
         self.assertEqual(result, dict(people=dict(simon='123', george='234')))
-        
-        result = dict() 
-        registry.build_out(result, FLAGS.HOBBIES, result)
-        
+
+        # Only send the leaf node of a dependency chain. Rely on registry to calculate dependencies.
+        # Relies on the registry to detect that hobbies has a dependency and will automatically
+        #   pass the datastructure (result) to it as an arg.
+
+        result = registry.build_out(FLAGS.HOBBIES)
         self.assertEqual(result, dict(
             people=dict(simon='123', george='234'),
             hobbies=dict(simon=['mountain biking', 'skiing'], george=['snail collecting', 'roaring like a dinosaur'])))
 
-        result_1 = dict()
-        registry.build_out(result_1, FLAGS.PEOPLE | FLAGS.HOBBIES, result_1)
+        # Explicitly send all required methods in the dependency chain.
+        # Relies on the registry to detect that hobbies has a dependency and will automatically
+        #   pass the datastructure (result) to it as an arg.
+
+        result_1 = registry.build_out(FLAGS.PEOPLE | FLAGS.HOBBIES)
         self.assertEqual(result, result_1)
-        
+
         FLAGS = Flags('PETS', 'FARM_ANIMALS', 'WILD_ANIMALS')
         registry = FlagRegistry()
 
@@ -220,19 +230,102 @@ class TestRegistry(unittest.TestCase):
         def some_method():
             return 'cat', 'pig', 'rhino'
 
-        result_2 = dict() 
-        registry.build_out(result_2, FLAGS.PETS | FLAGS.FARM_ANIMALS)
-        
+        # Multiple Return Value Flag Subset
+
+        result_2 = registry.build_out(FLAGS.PETS | FLAGS.FARM_ANIMALS)
         self.assertEqual(set(result_2.keys()), set(['pets', 'farm']))
-        
+
         FLAGS = Flags('ONE')
         registry = FlagRegistry()
 
         @registry.register(flag=FLAGS.ONE)
         def method_one():
             return dict(tanya='redAlert')
-            
-        result_3 = dict() 
-        registry.build_out(result_3, FLAGS.ONE)
-        
+
+        # Let the registry build our results dictionary. (Lacks start_with)
+        # Use the default value for pass_dictionary (False)
+
+        result_3 = registry.build_out(FLAGS.ONE)
         self.assertEqual(result_3, dict(tanya='redAlert'))
+
+        # Pass in our own results dictionary (start_with=somedict)
+        # Use the default value for pass_dictionary (False)
+
+        somedict = dict(somekey='asdf', anotherkey='defg')
+        result_4 = registry.build_out(FLAGS.ONE, start_with=somedict)
+        self.assertEqual(set(result_4.keys()), set(['tanya', 'somekey', 'anotherkey']))
+
+        # Pass in our own results dictionary (somedict=somedict)
+        # Set pass_dictionary to True
+
+        FLAGS = Flags('WINNER')
+        registry = FlagRegistry()
+
+        @registry.register(flag=FLAGS.WINNER)
+        def method_winner(data):
+            return dict(winner=data['name'])
+
+        somedict = dict(name='george')
+        result_4 = registry.build_out(FLAGS.WINNER, start_with=somedict, pass_datastructure=True)
+        self.assertEqual(result_4, dict(winner='george', name='george'))
+
+        # Let the registry build our results dictionary. (Lacks start_with)
+        # Set pass_datastructure to True
+
+        FLAGS = Flags('Cookies')
+        registry = FlagRegistry()
+
+        @registry.register(flag=FLAGS.Cookies)
+        def method_cookies(data):
+            return dict(cookies_remaining=len(data.keys()))
+
+        result_4 = registry.build_out(FLAGS.ALL, pass_datastructure=True)
+        self.assertEqual(result_4, dict(cookies_remaining=0))
+
+        # Set pass_datastructure=True
+        # Set starts_with
+        # Also send starting_dict in *args
+        # Make sure the registry doesn't send two copies of data to the method.
+
+        FLAGS = Flags('ACK')
+        registry = FlagRegistry()
+
+        @registry.register(flag=FLAGS.ACK, key='salutation')
+        def some_salutation(data):
+            return data['hello']
+
+        starting_dict = dict(hello="goodbye")
+        result = registry.build_out(FLAGS.ALL, starting_dict, pass_datastructure=True, start_with=starting_dict)
+        self.assertEqual(result, dict(hello='goodbye', salutation='goodbye'))
+
+        # Dependent Method
+        # Set pass_datastructure=True
+        # Set starts_with
+        # Also send starting_dict in *args
+        # Make sure the registry doesn't send two copies of data to the method.
+
+        FLAGS = Flags('PEOPLE', 'HOBBIES')
+        registry = FlagRegistry()
+
+        @registry.register(flag=FLAGS.PEOPLE, key='people')
+        def method_people1(*args):
+            return dict(simon='123', george='234')
+
+        @registry.register(flag=FLAGS.HOBBIES, depends_on=FLAGS.PEOPLE, key='hobbies')
+        def method_hobbies1(result):
+            hobbies = {
+                '123': ['mountain biking', 'skiing'],
+                '234': ['snail collecting', 'roaring like a dinosaur']}
+
+            return_value = dict()
+            for person, uid in result['people'].items():
+                return_value[person] = hobbies.get(uid)
+
+            return return_value
+
+        starting_dict = dict(hello="goodbye")
+        result = registry.build_out(FLAGS.ALL, starting_dict, pass_datastructure=True, start_with=starting_dict)
+        self.assertEqual(result, dict(
+            hello='goodbye',
+            people=dict(simon='123', george='234'),
+            hobbies=dict(simon=['mountain biking', 'skiing'], george=['snail collecting', 'roaring like a dinosaur'])))

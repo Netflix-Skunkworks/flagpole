@@ -70,10 +70,12 @@ The decorator has the following keyword arguments:
 
 The `registry.build_out(...)` method takes the following arguments:
 
-- __result__: A dictionary that will be mutated to contain the return values for all decorated methods.
-- __flags__: The flag indicating which decorated methods to execute.  Multiple may be combined using a binary OR operation: `flags=FLAGS.RULES | FLAGS.LISTENERS`
-- __*args__: Arguments passed to all executed decorated methods.
-- __**kwargs__: Keyword arguments passed to all executed decorated methods.
+ - __flags__: User-supplied combination of FLAGS.  (ie. `flags = FLAGS.CORS | FLAGS.WEBSITE`)
+ - __pass_datastructure__: To pass the result dictionary as an arg to each decorated method, set this to True.  Otherwise it will only be sent if a dependency is detected.
+ - __start_with__: You can pass in a dictionary for build_out to mutate. By default, build_out will create a new dictionary and return it.
+ - __*args__: Passed on to the method registered in the FlagRegistry
+ - __**kwargs__: Passed on to the method registered in the FlagRegistry
+ - __return result__: The dictionary created by combining the output of all executed methods.
 
 The `build_out` method executes all registry decorated methods having a flag which matches that passed into `build_out`.
 It will follow any dependency chains to execute methods in the correct order.
@@ -114,14 +116,12 @@ And then you can call `registry.build_out()` like so:
 
 ```python
 def get_elbv2(alb_arn, flags=FLAGS.ALL, **conn):
-    result = dict(Arn=alb_arn)
-    registry.build_out(result, flags, result, **conn)
+    alb = dict(Arn=alb_arn)
+    registry.build_out(flags, start_with=alb, pass_datastructure=True, **conn)
     return result
 ```
 
 Note: You can build any arbitrary combination of flags such as: `flags=FLAGS.RULES | FLAGS.LISTENERS`
-
-Note that `build_out` does not have a return value. It mutates the `result` dictionary passed in.
 
 The result for this example, when called with `FLAGS.ALL` would be a dictionary in the following structure:
 

@@ -158,7 +158,7 @@ class FlagRegistry:
             method_dependencies = method_dependencies | entry['depends_on']
         return method_flag, method_dependencies
 
-    def _execute_method(self, method, method_flag, method_dependencies, executed_flag, result, flags, *args, **kwargs):
+    def _execute_method(self, method, method_flag, method_dependencies, executed_flag, result, pass_datastructure, flags, *args, **kwargs):
         """
         Executes a @FlagRegistry.register() decorated method.
 
@@ -181,7 +181,11 @@ class FlagRegistry:
             return False
 
         # At least one of the return values is required. Call the method.
-        retval = method(*args, **kwargs)
+        if (result not in args) and (method_dependencies or pass_datastructure):
+            # Need to pass along dict(result) if it's not already in *args
+            retval = method(dict(result), *args, **kwargs)
+        else:
+            retval = method(*args, **kwargs)
 
         for entry in self.r[method]:
             if len(self.r[method]) > 1:
@@ -193,10 +197,9 @@ class FlagRegistry:
                     result.update({entry['key']: key_retval})
                 else:
                     result.update(key_retval)
-
         return True
 
-    def _do_method_pass(self, method_queue, executed_flag, result, flags, *args, **kwargs):
+    def _do_method_pass(self, method_queue, executed_flag, result, pass_datastructure, flags, *args, **kwargs):
         """
         Loop over available methods, executing those that are ready.
         - Raise an exception if we don't execute any methods on a given path. (circular dependency)
@@ -209,7 +212,7 @@ class FlagRegistry:
 
         for method in method_queue:
             method_flag, method_dependencies = self._get_method_flag(method)
-            if self._execute_method(method, method_flag, method_dependencies, executed_flag, result, flags, *args, **kwargs):
+            if self._execute_method(method, method_flag, method_dependencies, executed_flag, result, pass_datastructure, flags, *args, **kwargs):
                 did_execute_method = True
                 executed_flag = int(executed_flag | method_flag)
             else:
@@ -220,7 +223,7 @@ class FlagRegistry:
 
         return next_method_queue, executed_flag
 
-    def build_out(self, result, flags, *args, **kwargs):
+    def build_out(self, flags, *args, **kwargs):
         """
         Provided user-supplied flags, `build_out` will find the appropriate methods from the FlagRegistry
         and mutate the `result` dictionary.
@@ -230,19 +233,26 @@ class FlagRegistry:
         - Break when we've executed all methods.
         - Break and error out if we don't execute any on a given pass.
 
-        :param: result - Dictionary to put results into.
-        :param: flags - User-supplied combination of FLAGS.  (ie. `flags = FLAGS.CORS | FLAGS.WEBSITE`)
-        :param: *args - Passed on to the method registered in the FlagRegistry
-        :param: **kwargs - Passed on to the method registered in the FlagRegistry
-        :return None:  Mutates the results dictionary.
+        :param flags: User-supplied combination of FLAGS.  (ie. `flags = FLAGS.CORS | FLAGS.WEBSITE`)
+        :param pass_datastructure: To pass the result dictionary as an arg to each decorated method, set this to True.  Otherwise it will only be sent if a dependency is detected.
+        :param start_with: You can pass in a dictionary for build_out to mutate. By default, build_out will create a new dictionary and return it.
+        :param *args: Passed on to the method registered in the FlagRegistry
+        :param **kwargs: Passed on to the method registered in the FlagRegistry
+        :return result: The dictionary created by combining the output of all executed methods.
         """
+        pass_datastructure = kwargs.pop('pass_datastructure', False)
+        start_with = kwargs.pop('start_with', dict())
+
         flags = self._validate_flags(flags)
+        result = start_with or dict()
 
         method_queue = self.r.keys()
         executed_flag = 0
         while len(method_queue) > 0:
-            method_queue, executed_flag = self._do_method_pass(method_queue, executed_flag, result, flags, *args, **kwargs)
-        return
+            method_queue, executed_flag = self._do_method_pass(
+                method_queue, executed_flag, result, pass_datastructure, flags,
+                *args, **kwargs)
+        return result
 
 
 class Flags(object):

@@ -23,7 +23,7 @@ dev_require = []
 
 setup(
     name='flagpole',
-    version='1.0.0',
+    version='1.0.1',
     author='Patrick Kelley',
     author_email='pkelley@netflix.com',
     url='https://github.com/monkeysecurity/flagpole',
